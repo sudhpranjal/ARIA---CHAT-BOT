@@ -746,7 +746,7 @@ async function sendMessage() {
       method: 'POST',
       headers: {
                   'Content-Type': 'application/json',
-                  'x-api-key': document.getElementById('api-key-input').value,
+                  'x-api-key': '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',
                   'anthropic-version': '2023-06-01',
                   'anthropic-dangerous-direct-browser-access': 'true'
                 },
@@ -925,36 +925,4 @@ function resetBot() {
 }
 </script>
 </body>
-  <div id="key-bar" style="
-  position:fixed; bottom:0; left:0; right:0;
-  background:#0f1e2c; padding:10px 20px;
-  display:flex; gap:10px; align-items:center;
-  border-top:2px solid #0ea876; z-index:999;">
-  <span style="color:#0ea876; font-weight:700; 
-    font-size:13px; white-space:nowrap;">🔑 API Key:</span>
-  <input id="api-key-input" type="password" 
-    placeholder="Paste your Anthropic API key here (sk-ant-...)"
-    style="flex:1; padding:8px 12px; border-radius:8px;
-    border:1px solid #0ea876; background:#1e3347; 
-    color:white; font-size:13px; outline:none;"/>
-  <button onclick="saveKey()" style="
-    background:#0ea876; color:white; border:none;
-    padding:8px 16px; border-radius:8px; 
-    font-weight:700; cursor:pointer;">Save</button>
-  <span id="key-status" style="color:#6b8a9e; 
-    font-size:12px;"></span>
-</div>
-
-<script>
-function saveKey() {
-  const key = document.getElementById('api-key-input').value.trim();
-  if (key.startsWith('sk-ant-')) {
-    document.getElementById('key-status').textContent = '✅ Key saved!';
-    document.getElementById('key-status').style.color = '#0ea876';
-  } else {
-    document.getElementById('key-status').textContent = '❌ Invalid key format';
-    document.getElementById('key-status').style.color = '#e05252';
-  }
-}
-</script>
 </html>
