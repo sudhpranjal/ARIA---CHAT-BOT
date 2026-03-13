@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ARIA — Presentation Q&A Bot</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --teal:    #0ea876;
+  --teal2:   #0bcc8f;
+  --teal-bg: #e8faf3;
+  --teal-mid:#c2f0df;
+  --navy:    #0f1e2c;
+  --slate:   #1e3347;
+  --ink:     #1a2e3d;
+  --muted:   #6b8a9e;
+  --light:   #f4f8fb;
+  --white:   #ffffff;
+  --border:  #dde8f0;
+  --shadow:  0 4px 24px rgba(15,30,44,0.10);
+  --shadow-lg: 0 8px 40px rgba(15,30,44,0.15);
+  --r: 16px;
+  --font: 'Nunito', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font);
+  background: var(--light);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px 40px;
+  background-image: radial-gradient(circle at 20% 10%, rgba(14,168,118,0.07) 0%, transparent 50%),
+                    radial-gradient(circle at 80% 80%, rgba(14,168,118,0.05) 0%, transparent 45%);
+}
+
+/* ── Header ───────────────────────────────────────── */
+.header {
+  width: 100%;
+  max-width: 820px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.header-logo {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--navy);
+  letter-spacing: -0.5px;
+}
+.header-logo span { color: var(--teal); }
+.header-sub {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.badge {
+  margin-left: auto;
+  background: var(--teal-bg);
+  color: var(--teal);
+  border: 1px solid var(--teal-mid);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+/* ── Card ─────────────────────────────────────────── */
+.card {
+  background: var(--white);
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 820px;
+  overflow: hidden;
+}
+
+/* ── Upload zone ─────────────────────────────────── */
+#upload-screen {
+  padding: 48px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+.upload-zone {
+  border: 2px dashed var(--teal-mid);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 480px;
+  padding: 40px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  background: var(--teal-bg);
+  position: relative;
+}
+.upload-zone:hover, .upload-zone.drag { border-color: var(--teal); background: #d8f5eb; }
+.upload-zone input[type=file] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.upload-icon { font-size: 48px; margin-bottom: 12px; display: block; }
+.upload-title {
+  font-size: 17px; font-weight: 700; color: var(--ink); margin-bottom: 6px;
+}
+.upload-hint { font-size: 13px; color: var(--muted); }
+.upload-formats {
+  display: flex; gap: 8px; margin-top: 14px; justify-content: center;
+}
+.fmt-chip {
+  background: white; border: 1px solid var(--border); border-radius: 6px;
+  padding: 3px 10px; font-size: 11px; font-weight: 700;
+  color: var(--muted); font-family: var(--mono);
+}
+
+/* ── Processing ──────────────────────────────────── */
+#processing-screen {
+  display: none;
+  padding: 60px 32px;
+  text-align: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.spinner {
+  width: 48px; height: 48px;
+  border: 3px solid var(--teal-mid);
+  border-top-color: var(--teal);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Chat screen ─────────────────────────────────── */
+#chat-screen {
+  display: none;
+  flex-direction: column;
+  height: 620px;
+}
+
+/* Top bar of chat */
+.chat-topbar {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--navy);
+  color: white;
+}
+.file-chip {
+  background: rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--mono);
+  color: var(--teal2);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.slide-count {
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+  margin-left: auto;
+}
+.reset-btn {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: rgba(255,255,255,0.6);
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font);
+  font-weight: 600;
+  transition: all .15s;
+}
+.reset-btn:hover { background: rgba(255,255,255,0.2); color: white; }
+
+/* Chat body */
+.chat-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  gap: 0;
+}
+.chat-body::-webkit-scrollbar { width: 4px; }
+.chat-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* Mascot column */
+.mascot-col {
+  width: 100px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 4px;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+}
+
+/* Messages column */
+.messages-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* Message */
+.msg { display: flex; gap: 10px; align-items: flex-end; animation: popIn .25s ease; }
+@keyframes popIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+.msg.user { flex-direction: row-reverse; }
+.msg-av {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--navy); color: white;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; flex-shrink: 0;
+}
+.msg.user .msg-av { background: var(--teal); }
+.bubble {
+  max-width: 78%;
+  padding: 11px 15px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.65;
+}
+.msg.aria .bubble {
+  background: var(--light);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+  color: var(--ink);
+}
+.msg.user .bubble {
+  background: var(--navy);
+  border-bottom-right-radius: 4px;
+  color: white;
+}
+.bubble strong { color: var(--teal); font-weight: 700; }
+.bubble ul { padding-left: 18px; margin: 6px 0; }
+.bubble li { margin-bottom: 3px; }
+.bubble code { font-family: var(--mono); font-size: 12px; background: rgba(14,168,118,0.12); padding: 1px 5px; border-radius: 4px; color: var(--teal); }
+.msg.user .bubble strong { color: var(--teal2); }
+.msg.user .bubble code { background: rgba(255,255,255,0.15); color: white; }
+
+/* Typing */
+.typing-dots { display: flex; gap: 5px; padding: 4px 2px; }
+.typing-dots span {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--teal); opacity: 0.5;
+  animation: bounce .9s ease-in-out infinite;
+}
+.typing-dots span:nth-child(2) { animation-delay:.2s; }
+.typing-dots span:nth-child(3) { animation-delay:.4s; }
+@keyframes bounce { 0%,80%,100%{transform:scale(.6);opacity:.4} 40%{transform:scale(1.1);opacity:1} }
+
+/* Suggested questions */
+.suggestions {
+  padding: 0 20px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.sug-chip {
+  background: var(--teal-bg);
+  border: 1px solid var(--teal-mid);
+  color: var(--teal);
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.sug-chip:hover { background: var(--teal); color: white; border-color: var(--teal); }
+
+/* Input row */
+.input-row {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  background: white;
+}
+.chat-input {
+  flex: 1;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--ink);
+  outline: none;
+  resize: none;
+  min-height: 44px;
+  max-height: 110px;
+  transition: border-color .2s;
+  line-height: 1.5;
+}
+.chat-input:focus { border-color: var(--teal); }
+.chat-input::placeholder { color: var(--muted); }
+.send-btn {
+  background: var(--teal);
+  border: none;
+  border-radius: 12px;
+  width: 44px; height: 44px;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all .15s;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.send-btn:hover { background: var(--teal2); transform: scale(1.05); }
+.send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+/* ── MASCOT ──────────────────────────────────────── */
+.mascot-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: all .3s;
+}
+.mascot-name {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--teal);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+/* Robot SVG mascot */
+.mascot-svg {
+  width: 72px;
+  height: 88px;
+  cursor: default;
+  filter: drop-shadow(0 4px 12px rgba(14,168,118,0.25));
+  transition: transform .3s;
+}
+.mascot-svg.talking { animation: mascotTalk .4s ease-in-out infinite alternate; }
+.mascot-svg.idle { animation: mascotIdle 3s ease-in-out infinite; }
+.mascot-svg.happy { animation: mascotHappy .5s ease-in-out; }
+@keyframes mascotTalk {
+  from { transform: translateY(0) rotate(-1deg); }
+  to   { transform: translateY(-3px) rotate(1deg); }
+}
+@keyframes mascotIdle {
+  0%,100% { transform: translateY(0); }
+  50%     { transform: translateY(-4px); }
+}
+@keyframes mascotHappy {
+  0%   { transform: scale(1) rotate(0deg); }
+  25%  { transform: scale(1.1) rotate(-5deg); }
+  75%  { transform: scale(1.1) rotate(5deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+/* Eye blink */
+.eye-l, .eye-r { animation: blink 4s ease-in-out infinite; transform-origin: center; }
+.eye-r { animation-delay: 0.08s; }
+@keyframes blink { 0%,90%,100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+/* Mouth states */
+#mouth-idle, #mouth-talk, #mouth-happy { transition: opacity .2s; }
+
+/* Speech bubble */
+.speech-bubble {
+  position: relative;
+  background: var(--navy);
+  color: white;
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  max-width: 88px;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all .25s;
+  pointer-events: none;
+  margin-top: 4px;
+}
+.speech-bubble.show { opacity: 1; transform: scale(1); }
+.speech-bubble::before {
+  content: '';
+  position: absolute;
+  top: -7px; left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-bottom-color: var(--navy);
+}
+
+/* Welcome hints on upload screen */
+.welcome-hints {
+  display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; max-width: 480px;
+}
+.hint-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  flex: 1; min-width: 120px;
+}
+.hint-card .h-icon { font-size: 22px; display: block; margin-bottom: 6px; }
+.hint-card strong { display: block; color: var(--ink); font-weight: 700; margin-bottom: 3px; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div>
+    <div class="header-logo"><span>A</span>RIA</div>
+    <div class="header-sub">Presentation Q&amp;A Assistant</div>
+  </div>
+  <div class="badge" id="top-badge">Ready to load PPT</div>
+</div>
+
+<!-- Main card -->
+<div class="card">
+
+  <!-- ── UPLOAD SCREEN ── -->
+  <div id="upload-screen">
+
+    <!-- Mascot on upload screen -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+      <svg class="mascot-svg idle" viewBox="0 0 72 88" fill="none" xmlns="http://www.w3.org/2000/svg" id="mascot-hero">
+        <!-- Antenna -->
+        <line x1="36" y1="4" x2="36" y2="13" stroke="#0ea876" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="36" cy="3" r="3" fill="#0bcc8f"/>
+        <!-- Head -->
+        <rect x="10" y="13" width="52" height="36" rx="12" fill="#0f1e2c"/>
+        <rect x="12" y="15" width="48" height="32" rx="10" fill="#1e3347"/>
+        <!-- Screen glare -->
+        <rect x="14" y="17" width="20" height="4" rx="2" fill="rgba(255,255,255,0.06)"/>
+        <!-- Eyes background -->
+        <rect x="18" y="23" width="14" height="14" rx="5" fill="#0ea876" opacity="0.18"/>
+        <rect x="40" y="23" width="14" height="14" rx="5" fill="#0ea876" opacity="0.18"/>
+        <!-- Pupils -->
+        <g class="eye-l"><circle cx="25" cy="30" r="5" fill="#0bcc8f" opacity="0.9"/><circle cx="27" cy="28" r="1.8" fill="white" opacity="0.6"/></g>
+        <g class="eye-r"><circle cx="47" cy="30" r="5" fill="#0bcc8f" opacity="0.9"/><circle cx="49" cy="28" r="1.8" fill="white" opacity="0.6"/></g>
+        <!-- Mouth idle -->
+        <g id="mouth-idle"><rect x="24" y="40" width="24" height="4" rx="2" fill="#0ea876" opacity="0.7"/></g>
+        <!-- Mouth talk (hidden) -->
+        <g id="mouth-talk" style="opacity:0"><ellipse cx="36" cy="42" rx="8" ry="4" fill="#0ea876" opacity="0.8"/></g>
+        <!-- Mouth happy (hidden) -->
+        <g id="mouth-happy" style="opacity:0"><path d="M26 40 Q36 48 46 40" stroke="#0bcc8f" stroke-width="2.5" stroke-linecap="round" fill="none"/></g>
+        <!-- Neck -->
+        <rect x="30" y="49" width="12" height="6" rx="3" fill="#0f1e2c"/>
+        <!-- Body -->
+        <rect x="8" y="55" width="56" height="28" rx="10" fill="#0f1e2c"/>
+        <rect x="10" y="57" width="52" height="24" rx="8" fill="#1e3347"/>
+        <!-- Chest panel -->
+        <rect x="20" y="62" width="32" height="13" rx="5" fill="#0ea876" opacity="0.15"/>
+        <circle cx="28" cy="68" r="3" fill="#0bcc8f" opacity="0.7"/>
+        <circle cx="36" cy="68" r="3" fill="#0ea876" opacity="0.5"/>
+        <circle cx="44" cy="68" r="3" fill="#0bcc8f" opacity="0.7"/>
+        <!-- Arms -->
+        <rect x="0" y="57" width="10" height="20" rx="5" fill="#1e3347"/>
+        <rect x="62" y="57" width="10" height="20" rx="5" fill="#1e3347"/>
+        <!-- Legs -->
+        <rect x="16" y="83" width="14" height="5" rx="2.5" fill="#0f1e2c"/>
+        <rect x="42" y="83" width="14" height="5" rx="2.5" fill="#0f1e2c"/>
+      </svg>
+      <div class="mascot-name">ARIA</div>
+    </div>
+
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" id="file-input" accept=".pptx,.ppt" onchange="handleFile(this.files[0])"/>
+      <span class="upload-icon">📊</span>
+      <div class="upload-title">Drop your presentation here</div>
+      <div class="upload-hint">Upload your PPT and I'll answer questions from it live</div>
+      <div class="upload-formats">
+        <span class="fmt-chip">.pptx</span>
+        <span class="fmt-chip">.ppt</span>
+      </div>
+    </div>
+
+    <div class="welcome-hints">
+      <div class="hint-card"><span class="h-icon">📖</span><strong>Reads slides</strong>Extracts text from every slide</div>
+      <div class="hint-card"><span class="h-icon">🤖</span><strong>AI answers</strong>Powered by Claude AI</div>
+      <div class="hint-card"><span class="h-icon">🎤</span><strong>Live Q&A</strong>Perfect for presentations</div>
+    </div>
+  </div>
+
+  <!-- ── PROCESSING SCREEN ── -->
+  <div id="processing-screen" style="display:none;padding:60px 32px;text-align:center;flex-direction:column;align-items:center;gap:16px;">
+    <div class="spinner"></div>
+    <div style="font-size:16px;font-weight:700;color:var(--ink)">Reading your presentation…</div>
+    <div style="font-size:13px;color:var(--muted)" id="process-msg">Extracting slide content</div>
+  </div>
+
+  <!-- ── CHAT SCREEN ── -->
+  <div id="chat-screen" style="display:none;flex-direction:column;height:620px;">
+    <div class="chat-topbar">
+      <span style="font-size:18px;">📊</span>
+      <div>
+        <div class="file-chip" id="file-name-chip">presentation.pptx</div>
+      </div>
+      <div class="slide-count" id="slide-count-label"></div>
+      <button class="reset-btn" onclick="resetBot()">↩ New PPT</button>
+    </div>
+
+    <div class="chat-body" id="chat-body">
+      <!-- Mascot column -->
+      <div class="mascot-col">
+        <div class="mascot-wrap" id="mascot-wrap">
+          <svg class="mascot-svg idle" viewBox="0 0 72 88" fill="none" xmlns="http://www.w3.org/2000/svg" id="mascot-chat">
+            <line x1="36" y1="4" x2="36" y2="13" stroke="#0ea876" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="36" cy="3" r="3" fill="#0bcc8f"/>
+            <rect x="10" y="13" width="52" height="36" rx="12" fill="#0f1e2c"/>
+            <rect x="12" y="15" width="48" height="32" rx="10" fill="#1e3347"/>
+            <rect x="14" y="17" width="20" height="4" rx="2" fill="rgba(255,255,255,0.06)"/>
+            <rect x="18" y="23" width="14" height="14" rx="5" fill="#0ea876" opacity="0.18"/>
+            <rect x="40" y="23" width="14" height="14" rx="5" fill="#0ea876" opacity="0.18"/>
+            <g class="eye-l"><circle cx="25" cy="30" r="5" fill="#0bcc8f" opacity="0.9"/><circle cx="27" cy="28" r="1.8" fill="white" opacity="0.6"/></g>
+            <g class="eye-r"><circle cx="47" cy="30" r="5" fill="#0bcc8f" opacity="0.9"/><circle cx="49" cy="28" r="1.8" fill="white" opacity="0.6"/></g>
+            <g id="cm-idle"><rect x="24" y="40" width="24" height="4" rx="2" fill="#0ea876" opacity="0.7"/></g>
+            <g id="cm-talk" style="opacity:0"><ellipse cx="36" cy="42" rx="8" ry="4" fill="#0ea876" opacity="0.8"/></g>
+            <g id="cm-happy" style="opacity:0"><path d="M26 40 Q36 48 46 40" stroke="#0bcc8f" stroke-width="2.5" stroke-linecap="round" fill="none"/></g>
+            <rect x="30" y="49" width="12" height="6" rx="3" fill="#0f1e2c"/>
+            <rect x="8" y="55" width="56" height="28" rx="10" fill="#0f1e2c"/>
+            <rect x="10" y="57" width="52" height="24" rx="8" fill="#1e3347"/>
+            <rect x="20" y="62" width="32" height="13" rx="5" fill="#0ea876" opacity="0.15"/>
+            <circle cx="28" cy="68" r="3" fill="#0bcc8f" opacity="0.7"/>
+            <circle cx="36" cy="68" r="3" fill="#0ea876" opacity="0.5"/>
+            <circle cx="44" cy="68" r="3" fill="#0bcc8f" opacity="0.7"/>
+            <rect x="0" y="57" width="10" height="20" rx="5" fill="#1e3347"/>
+            <rect x="62" y="57" width="10" height="20" rx="5" fill="#1e3347"/>
+            <rect x="16" y="83" width="14" height="5" rx="2.5" fill="#0f1e2c"/>
+            <rect x="42" y="83" width="14" height="5" rx="2.5" fill="#0f1e2c"/>
+          </svg>
+          <div class="mascot-name">ARIA</div>
+          <div class="speech-bubble" id="speech-bubble">Hi! Ask me anything!</div>
+        </div>
+      </div>
+
+      <!-- Messages column -->
+      <div class="messages-col" id="messages-col"></div>
+    </div>
+
+    <!-- Suggested questions -->
+    <div class="suggestions" id="suggestions"></div>
+
+    <!-- Input -->
+    <div class="input-row">
+      <textarea class="chat-input" id="chat-input" rows="1"
+        placeholder="Ask anything about your presentation…"
+        onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button class="send-btn" id="send-btn" onclick="sendMessage()" title="Send">▶</button>
+    </div>
+  </div>
+
+</div><!-- /card -->
+
+<script>
+// ── State ─────────────────────────────────────────
+let slideContent = [];
+let history = [];
+let isBusy = false;
+let speechTimer = null;
+
+// ── Drag & drop ───────────────────────────────────
+const zone = document.getElementById('upload-zone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+
+// ── File handling ─────────────────────────────────
+async function handleFile(file) {
+  if (!file) return;
+  if (!file.name.match(/\.pptx?$/i)) {
+    alert('Please upload a .pptx or .ppt file.'); return;
+  }
+
+  show('processing-screen');
+  setMsg('Reading slides…');
+
+  try {
+    const text = await extractPptxText(file);
+    slideContent = text;
+
+    if (slideContent.length === 0) throw new Error('No text found in slides.');
+
+    setMsg(`Found ${slideContent.length} slides — preparing ARIA…`);
+    await new Promise(r => setTimeout(r, 700));
+
+    // Transition to chat
+    document.getElementById('file-name-chip').textContent = file.name;
+    document.getElementById('slide-count-label').textContent =
+      `${slideContent.length} slides loaded`;
+    document.getElementById('top-badge').textContent = `${slideContent.length} slides ready`;
+
+    show('chat-screen');
+    history = [];
+    document.getElementById('messages-col').innerHTML = '';
+
+    // Welcome message
+    await addAriaMessage(
+      `Hi! I've read your presentation **"${file.name}"** and loaded **${slideContent.length} slides**. 🎉\n\nAsk me anything — I'll answer based on your slides!`
+    );
+
+    buildSuggestions();
+    setMood('happy');
+    showSpeech('Ready to help! 🎉');
+
+  } catch(err) {
+    show('upload-screen');
+    alert('Could not read the file: ' + err.message);
+  }
+}
+
+// ── PPTX text extraction via JSZip ────────────────
+async function extractPptxText(file) {
+  const buf = await file.arrayBuffer();
+  const zip = await JSZip.loadAsync(buf);
+  const slides = [];
+
+  // Find all slide files sorted by number
+  const slideFiles = Object.keys(zip.files)
+    .filter(n => n.match(/^ppt\/slides\/slide\d+\.xml$/))
+    .sort((a, b) => {
+      const na = parseInt(a.match(/\d+/)[0]);
+      const nb = parseInt(b.match(/\d+/)[0]);
+      return na - nb;
+    });
+
+  for (let i = 0; i < slideFiles.length; i++) {
+    const xmlStr = await zip.files[slideFiles[i]].async('string');
+    const text = extractTextFromSlideXml(xmlStr);
+    if (text.trim()) {
+      slides.push({ slide: i + 1, text: text.trim() });
+    }
+    setMsg(`Reading slide ${i + 1} of ${slideFiles.length}…`);
+  }
+
+  return slides;
+}
+
+function extractTextFromSlideXml(xml) {
+  // Remove XML tags and extract text runs
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xml, 'text/xml');
+
+  // Get all <a:t> text elements (DrawingML text)
+  const textNodes = doc.querySelectorAll('t');
+  const parts = [];
+  let lastPara = null;
+
+  textNodes.forEach(node => {
+    const para = node.closest('p');
+    if (para !== lastPara) {
+      parts.push('\n');
+      lastPara = para;
+    }
+    const t = node.textContent.trim();
+    if (t) parts.push(t);
+  });
+
+  return parts.join(' ').replace(/\n +/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// ── Suggestions based on content ─────────────────
+function buildSuggestions() {
+  const container = document.getElementById('suggestions');
+  const defaults = [
+    'What is this presentation about?',
+    'Summarise the key points',
+    'What are the main conclusions?',
+    'List the topics covered',
+  ];
+  container.innerHTML = defaults.map(q =>
+    `<div class="sug-chip" onclick="sendQuick('${q}')">${q}</div>`
+  ).join('');
+}
+
+// ── Chat ──────────────────────────────────────────
+function getSystemPrompt() {
+  const allText = slideContent.map(s =>
+    `--- Slide ${s.slide} ---\n${s.text}`
+  ).join('\n\n');
+
+  return `You are ARIA, a friendly and knowledgeable presentation assistant. You have read the following presentation slides and your job is to answer questions about them accurately and helpfully.
+
+PRESENTATION CONTENT:
+${allText}
+
+Guidelines:
+- Answer ONLY based on the presentation content above.
+- If something is not in the slides, say so clearly but helpfully.
+- Be concise but complete. Use bullet points for lists.
+- Reference the slide number when relevant (e.g. "On slide 3…").
+- Use **bold** for key terms or important points.
+- Be friendly and encouraging — this is a live presentation!
+- Keep responses focused — no filler sentences.`;
+}
+
+async function sendMessage() {
+  if (isBusy) return;
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  isBusy = true;
+  document.getElementById('send-btn').disabled = true;
+
+  addUserMessage(text);
+  history.push({ role: 'user', content: text });
+
+  // Mascot: start talking animation
+  setMood('talking');
+  showSpeech('Thinking…');
+
+  // Typing indicator
+  const typingId = addTypingIndicator();
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: getSystemPrompt(),
+        messages: history,
+      }),
+    });
+
+    const data = await res.json();
+    removeEl(typingId);
+
+    const reply = data.content?.[0]?.text || 'Sorry, I couldn\'t get a response.';
+    await addAriaMessage(reply);
+    history.push({ role: 'assistant', content: reply });
+
+    setMood('happy');
+    showSpeech('Hope that helps! 😊');
+
+  } catch(err) {
+    removeEl(typingId);
+    await addAriaMessage(`**Oops!** I couldn't connect to my AI engine. Please check your network and try again.\n\`${err.message}\``);
+    setMood('idle');
+  }
+
+  isBusy = false;
+  document.getElementById('send-btn').disabled = false;
+  input.focus();
+}
+
+function sendQuick(q) {
+  document.getElementById('chat-input').value = q;
+  sendMessage();
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function autoResize(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 110) + 'px';
+}
+
+// ── Message rendering ─────────────────────────────
+function addUserMessage(text) {
+  const col = document.getElementById('messages-col');
+  const div = document.createElement('div');
+  div.className = 'msg user';
+  div.innerHTML = `
+    <div class="msg-av">You</div>
+    <div class="bubble">${escapeHtml(text)}</div>`;
+  col.appendChild(div);
+  scrollBottom();
+}
+
+async function addAriaMessage(text) {
+  const col = document.getElementById('messages-col');
+  const div = document.createElement('div');
+  div.className = 'msg aria';
+  div.innerHTML = `
+    <div class="msg-av">AR</div>
+    <div class="bubble">${formatMd(text)}</div>`;
+  col.appendChild(div);
+  scrollBottom();
+}
+
+let typingCount = 0;
+function addTypingIndicator() {
+  const id = 'typing-' + (++typingCount);
+  const col = document.getElementById('messages-col');
+  const div = document.createElement('div');
+  div.className = 'msg aria'; div.id = id;
+  div.innerHTML = `<div class="msg-av">AR</div><div class="bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
+  col.appendChild(div);
+  scrollBottom();
+  return id;
+}
+
+function removeEl(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+function scrollBottom() {
+  const body = document.getElementById('chat-body');
+  body.scrollTop = body.scrollHeight;
+}
+
+function formatMd(text) {
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/^[\-\*] (.+)/gm,'<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, m=>`<ul>${m}</ul>`)
+    .replace(/\n/g,'<br>');
+}
+
+function escapeHtml(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Mascot mood ───────────────────────────────────
+function setMood(mood) {
+  const svg = document.getElementById('mascot-chat');
+  if (!svg) return;
+  svg.classList.remove('idle','talking','happy');
+
+  const mIdle  = document.getElementById('cm-idle');
+  const mTalk  = document.getElementById('cm-talk');
+  const mHappy = document.getElementById('cm-happy');
+
+  if (mIdle)  mIdle.style.opacity  = '0';
+  if (mTalk)  mTalk.style.opacity  = '0';
+  if (mHappy) mHappy.style.opacity = '0';
+
+  if (mood === 'talking') {
+    svg.classList.add('talking');
+    if (mTalk) mTalk.style.opacity = '1';
+  } else if (mood === 'happy') {
+    svg.classList.add('happy');
+    if (mHappy) mHappy.style.opacity = '1';
+    setTimeout(() => {
+      svg.classList.remove('happy');
+      svg.classList.add('idle');
+      if (mHappy) mHappy.style.opacity = '0';
+      if (mIdle)  mIdle.style.opacity  = '1';
+    }, 1200);
+  } else {
+    svg.classList.add('idle');
+    if (mIdle) mIdle.style.opacity = '1';
+  }
+}
+
+function showSpeech(text) {
+  const bubble = document.getElementById('speech-bubble');
+  if (!bubble) return;
+  if (speechTimer) clearTimeout(speechTimer);
+  bubble.textContent = text;
+  bubble.classList.add('show');
+  speechTimer = setTimeout(() => bubble.classList.remove('show'), 3500);
+}
+
+// ── Helpers ───────────────────────────────────────
+function show(id) {
+  ['upload-screen','processing-screen','chat-screen'].forEach(s => {
+    const el = document.getElementById(s);
+    if (!el) return;
+    if (s === id) {
+      el.style.display = s === 'chat-screen' ? 'flex' : 'flex';
+      el.style.flexDirection = s === 'chat-screen' ? 'column' : 'column';
+    } else {
+      el.style.display = 'none';
+    }
+  });
+}
+
+function setMsg(t) {
+  const el = document.getElementById('process-msg');
+  if (el) el.textContent = t;
+}
+
+function resetBot() {
+  slideContent = [];
+  history = [];
+  document.getElementById('top-badge').textContent = 'Ready to load PPT';
+  show('upload-screen');
+  const mascotHero = document.getElementById('mascot-hero');
+  if (mascotHero) { mascotHero.classList.remove('talking','happy'); mascotHero.classList.add('idle'); }
+}
+</script>
+</body>
+</html>
